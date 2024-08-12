@@ -4,6 +4,7 @@ import (
 	"testing"
 	"waiig/ast"
 	"waiig/lexer"
+	"waiig/token"
 )
 
 func TestLetStatements(t *testing.T) {
@@ -39,6 +40,57 @@ func TestLetStatements(t *testing.T) {
 		if !testLetStatement(t, stmt, tt.expectedIdentifier) {
 			return
 		}
+	}
+}
+
+func TestReturnStatements(t *testing.T) {
+	input := `
+	return 1;
+	return 10;
+	return 98123;
+`
+
+	l := lexer.New(input)
+	p := New(l)
+
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 3 {
+		t.Fatalf("program.Statements does not contain 3 statements. got %d", len(program.Statements))
+	}
+
+	for _, stmt := range program.Statements {
+		returnStmt, ok := stmt.(*ast.ReturnStatement)
+		if !ok {
+			t.Errorf("stmt not *ast.ReturnStatement, got %T", stmt)
+			continue
+		}
+		if returnStmt.TokenLiteral() != "return" {
+			t.Errorf("returnStmt.TokenLiteral not 'return', got %q", returnStmt.TokenLiteral())
+		}
+	}
+}
+
+func TestString(t *testing.T) {
+	program := &ast.Program{
+		Statements: []ast.Statement{
+			&ast.LetStatement{
+				Token: token.Token{Type: token.LET, Literal: "let"},
+				Name: &ast.Identifier{
+					Token: token.Token{Type: token.IDENT, Literal: "myVar"},
+					Value: "myVar",
+				},
+				Value: &ast.Identifier{
+					Token: token.Token{Type: token.IDENT, Literal: "anotherVar"},
+					Value: "anotherVar",
+				},
+			},
+		},
+	}
+
+	if program.String() != "let myVar = anotherVar;" {
+		t.Errorf("program.String() wrong. got=%q", program.String())
 	}
 }
 
