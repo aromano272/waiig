@@ -1,6 +1,11 @@
 package object
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+	"strings"
+	"waiig/ast"
+)
 
 type ObjectType string
 
@@ -10,6 +15,7 @@ const (
 	NULL_OBJ         = "NULL"
 	RETURN_VALUE_OBJ = "RETURN_VALUE"
 	ERROR_OBJ        = "ERROR"
+	FUNCTION_OBJ     = "FUNCTION"
 )
 
 type Object interface {
@@ -71,13 +77,50 @@ func (e *Error) Inspect() string {
 	return "ERROR: " + e.Message
 }
 
+type Function struct {
+	Parameters []*ast.Identifier
+	Body       *ast.BlockStatement
+	// We have this Env here to allow for closures, which "close over" the env they're defined in and can later access it
+	Env *Environment
+}
+
+func (f *Function) Type() ObjectType {
+	return FUNCTION_OBJ
+}
+func (f *Function) Inspect() string {
+	var out bytes.Buffer
+
+	params := []string{}
+	for _, p := range f.Parameters {
+		params = append(params, p.String())
+	}
+
+	out.WriteString("fn")
+	out.WriteString("(")
+	out.WriteString(strings.Join(params, ", "))
+	out.WriteString(") ")
+	//out.WriteString(") {\n")
+	out.WriteString(f.Body.String())
+	//out.WriteString("\n}")
+
+	return out.String()
+}
+
 type Environment struct {
+	outer *Environment
 	store map[string]Object
+}
+
+func NewEnclosedEnvironment(outer *Environment) *Environment {
+	env := NewEnvironment()
+	env.outer = outer
+
+	return env
 }
 
 func NewEnvironment() *Environment {
 	s := make(map[string]Object)
-	return &Environment{store: s}
+	return &Environment{store: s, outer: nil}
 }
 
 func (e *Environment) Set(name string, value Object) Object {
@@ -87,5 +130,8 @@ func (e *Environment) Set(name string, value Object) Object {
 
 func (e *Environment) Get(name string) (Object, bool) {
 	value, ok := e.store[name]
+	if !ok && e.outer != nil {
+		value, ok = e.outer.Get(name)
+	}
 	return value, ok
 }
