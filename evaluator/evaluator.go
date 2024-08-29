@@ -77,8 +77,57 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 
 		return applyFunction(function, args)
+	case *ast.ArrayLiteral:
+		return evalArrayLiteral(node, env)
+	case *ast.IndexExpression:
+		return evalIndexExpression(node, env)
 	}
 	return nil
+}
+
+func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) object.Object {
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	indexObj := Eval(node.Index, env)
+	if isError(indexObj) {
+		return indexObj
+	}
+	index, ok := indexObj.(*object.Integer)
+	if !ok {
+		return newError("unknown index type: %s", indexObj.Type())
+	}
+
+	switch obj := left.(type) {
+	case *object.Array:
+		if int(index.Value) >= len(obj.Elements) || index.Value < 0 {
+			return newError("index out of bounds, index=%d len=%d", index.Value, len(obj.Elements))
+		}
+		return obj.Elements[index.Value]
+	case *object.String:
+		if int(index.Value) >= len(obj.Value) || index.Value < 0 {
+			return newError("index out of bounds, index=%d len=%d", index.Value, len(obj.Value))
+		}
+		char := string(obj.Value[index.Value])
+		return &object.String{Value: char}
+	default:
+		return newError("unknown operator: index of %s", left.Type())
+	}
+}
+
+func evalArrayLiteral(node *ast.ArrayLiteral, env *object.Environment) object.Object {
+	arr := &object.Array{}
+
+	elements := evalExpressions(node.Elements, env)
+	if len(elements) == 1 && isError(elements[0]) {
+		return elements[0]
+	}
+
+	arr.Elements = elements
+
+	return arr
 }
 
 func applyFunction(fn object.Object, args []object.Object) object.Object {

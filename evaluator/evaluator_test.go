@@ -216,6 +216,26 @@ if (10 > 1) {
 			`"Hello" - "World"`,
 			"unknown operator: STRING - STRING",
 		},
+		{
+			`"test"[5]`,
+			"index out of bounds, index=5 len=4",
+		},
+		{
+			`[1, 2, 3]["test"]`,
+			"unknown index type: STRING",
+		},
+		{
+			`[1, 2, 3][-1]`,
+			"index out of bounds, index=-1 len=3",
+		},
+		{
+			`[1, 2, 3][3]`,
+			"index out of bounds, index=3 len=3",
+		},
+		{
+			`1[2]"`,
+			"unknown operator: index of INTEGER",
+		},
 	}
 	for _, tt := range tests {
 		evaluated := testEval(tt.input)
@@ -304,6 +324,57 @@ addTwo(2);`
 	testIntegerObject(t, testEval(input), 4)
 }
 
+func TestArrayObject(t *testing.T) {
+	input := `
+	let test = "three";
+	[1, true, "two", test];
+`
+
+	expected := []object.Object{
+		&object.Integer{Value: 1},
+		&object.Boolean{Value: true},
+		&object.String{Value: "two"},
+		&object.String{Value: "three"},
+	}
+
+	testArrayObject(t, testEval(input), expected)
+}
+
+func TestIndexExpression(t *testing.T) {
+	inputInt := "[1, 2, 3][2]"
+	inputStr := `"test"[2]`
+
+	testIntegerObject(t, testEval(inputInt), 3)
+	testStringObject(t, testEval(inputStr), "s")
+}
+
+func testArrayObject(t *testing.T, obj object.Object, expected []object.Object) bool {
+	result, ok := obj.(*object.Array)
+	if !ok {
+		t.Errorf("object is not Array. got=%T (%+v)", obj, obj)
+		return false
+	}
+
+	actual := result.Elements
+
+	if len(actual) != len(expected) {
+		t.Errorf("array has the wrong len. got=%d, want=%d",
+			len(actual), len(expected))
+		return false
+	}
+
+	for i := range actual {
+		if (actual[i].Type() != expected[i].Type()) ||
+			(actual[i].Inspect() != expected[i].Inspect()) {
+			t.Errorf("element is not expected. got=%v, want=%v",
+				actual[i], expected[i])
+			return false
+		}
+	}
+
+	return true
+}
+
 func testNullObject(t *testing.T, obj object.Object) bool {
 	if obj != NULL {
 		t.Errorf("object is not NULL. got=%T (%+v)", obj, obj)
@@ -378,6 +449,21 @@ func testIntegerObject(t *testing.T, obj object.Object, expected int64) bool {
 	}
 	if result.Value != expected {
 		t.Errorf("object has wrong value. got=%d, want=%d",
+			result.Value, expected)
+		return false
+	}
+
+	return true
+}
+
+func testStringObject(t *testing.T, obj object.Object, expected string) bool {
+	result, ok := obj.(*object.String)
+	if !ok {
+		t.Errorf("object is not String. got=%T (%+v)", obj, obj)
+		return false
+	}
+	if result.Value != expected {
+		t.Errorf("object has wrong value. got=%s, want=%s",
 			result.Value, expected)
 		return false
 	}
