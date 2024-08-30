@@ -3,6 +3,7 @@ package object
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 	"waiig/ast"
 )
@@ -19,6 +20,7 @@ const (
 	FUNCTION_OBJ     = "FUNCTION"
 	BUILTIN_OBJ      = "BUILTIN"
 	ARRAY_OBJ        = "ARRAY"
+	RANGE_OBJ        = "RANGE"
 )
 
 type Object interface {
@@ -182,6 +184,25 @@ func (arr *Array) Inspect() string {
 	out.WriteString("[")
 	out.WriteString(strings.Join(elements, ", "))
 	out.WriteString("]")
+
+	return out.String()
+}
+
+type Range struct {
+	From        int64
+	ToExclusive int64
+}
+
+func (rg *Range) Type() ObjectType {
+	return RANGE_OBJ
+}
+
+func (rg *Range) Inspect() string {
+	var out bytes.Buffer
+
+	out.WriteString(strconv.Itoa(int(rg.From)))
+	out.WriteString(":")
+	out.WriteString(strconv.Itoa(int(rg.ToExclusive)))
 
 	return out.String()
 }

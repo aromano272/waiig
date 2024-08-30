@@ -368,6 +368,10 @@ func TestOperatorPrecedenceParsing(t *testing.T) {
 			"add(a * b[2], b[1], 2 * [1, 2][1])",
 			"add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
 		},
+		{
+			"add(a * b):arr[3]",
+			"add((a * b)):(arr[3])",
+		},
 	}
 
 	for _, tt := range tests {
@@ -773,6 +777,37 @@ func TestIndexExpression(t *testing.T) {
 	}
 
 	testLiteralExpression(t, exp.Index, 1)
+}
+
+func TestRangeExpression(t *testing.T) {
+	tests := []struct {
+		input  string
+		verify func(exp *ast.RangeExpression)
+	}{
+		{
+			input: "index:5*7",
+			verify: func(exp *ast.RangeExpression) {
+				testIdentifier(t, exp.Left, "index")
+				testInfixExpression(t, exp.Right, 5, "*", 7)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		stmt := program.Statements[0].(*ast.ExpressionStatement)
+		rg, ok := stmt.Expression.(*ast.RangeExpression)
+		if !ok {
+			t.Fatalf("stmt.Expression is not ast.RangeExpression. got=%T",
+				stmt.Expression)
+		}
+
+		tt.verify(rg)
+	}
 }
 
 func testLetStatement(t *testing.T, s ast.Statement, name string) bool {

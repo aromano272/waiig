@@ -29,7 +29,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(right) {
 			return right
 		}
-		return evalPrefixExpression(node.Operator, right, env)
+		return evalPrefixExpression(node.Operator, right)
 	case *ast.InfixExpression:
 		left := Eval(node.Left, env)
 		if isError(left) {
@@ -81,6 +81,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalArrayLiteral(node, env)
 	case *ast.IndexExpression:
 		return evalIndexExpression(node, env)
+	case *ast.RangeExpression:
+		return evalRangeExpression(node, env)
 	}
 	return nil
 }
@@ -95,25 +97,77 @@ func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) obj
 	if isError(indexObj) {
 		return indexObj
 	}
-	index, ok := indexObj.(*object.Integer)
-	if !ok {
+
+	switch index := indexObj.(type) {
+	case *object.Integer:
+		switch obj := left.(type) {
+		case *object.Array:
+			if int(index.Value) >= len(obj.Elements) || index.Value < 0 {
+				return newError("index out of bounds, index=%d len=%d", index.Value, len(obj.Elements))
+			}
+			return obj.Elements[index.Value]
+		case *object.String:
+			if int(index.Value) >= len(obj.Value) || index.Value < 0 {
+				return newError("index out of bounds, index=%d len=%d", index.Value, len(obj.Value))
+			}
+			char := string(obj.Value[index.Value])
+			return &object.String{Value: char}
+		default:
+			return newError("unknown operator: index of %s", left.Type())
+		}
+	case *object.Range:
+		switch obj := left.(type) {
+		case *object.Array:
+			if int(index.From) > len(obj.Elements) || int(index.ToExclusive) > len(obj.Elements) ||
+				index.From < 0 || index.ToExclusive < 0 {
+				return newError("range index out of bounds, index=%d:%d len=%d", index.From, index.ToExclusive, len(obj.Elements))
+			}
+			elements := obj.Elements[index.From:index.ToExclusive]
+			return &object.Array{Elements: elements}
+		case *object.String:
+			if int(index.From) > len(obj.Value) || int(index.ToExclusive) > len(obj.Value) ||
+				index.From < 0 || index.ToExclusive < 0 {
+				return newError("range index out of bounds, index=%d:%d len=%d", index.From, index.ToExclusive, len(obj.Value))
+			}
+			str := obj.Value[index.From:index.ToExclusive]
+			return &object.String{Value: str}
+		default:
+			return newError("unknown operator: index of %s", left.Type())
+		}
+	default:
 		return newError("unknown index type: %s", indexObj.Type())
 	}
 
-	switch obj := left.(type) {
-	case *object.Array:
-		if int(index.Value) >= len(obj.Elements) || index.Value < 0 {
-			return newError("index out of bounds, index=%d len=%d", index.Value, len(obj.Elements))
-		}
-		return obj.Elements[index.Value]
-	case *object.String:
-		if int(index.Value) >= len(obj.Value) || index.Value < 0 {
-			return newError("index out of bounds, index=%d len=%d", index.Value, len(obj.Value))
-		}
-		char := string(obj.Value[index.Value])
-		return &object.String{Value: char}
-	default:
-		return newError("unknown operator: index of %s", left.Type())
+}
+
+func evalRangeExpression(node *ast.RangeExpression, env *object.Environment) object.Object {
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	right := Eval(node.Right, env)
+	if isError(right) {
+		return right
+	}
+
+	from, ok := left.(*object.Integer)
+	if !ok {
+		return newError("unknown operator: %s : %s", left.Type(), right.Type())
+	}
+
+	toExclusive, ok := right.(*object.Integer)
+	if !ok {
+		return newError("unknown operator: %s : %s", left.Type(), right.Type())
+	}
+
+	if from.Value > toExclusive.Value {
+		return newError("range `from` must be greater than or equal to > `toExclusive`, from=%d toExclusive=%d", from.Value, toExclusive.Value)
+	}
+
+	return &object.Range{
+		From:        from.Value,
+		ToExclusive: toExclusive.Value,
 	}
 }
 
@@ -289,7 +343,7 @@ func evalIntegerInfixExpression(
 	}
 }
 
-func evalPrefixExpression(operator string, operand object.Object, env *object.Environment) object.Object {
+func evalPrefixExpression(operator string, operand object.Object) object.Object {
 	switch operator {
 	case "!":
 		return evalBangOperatorExpression(operand)

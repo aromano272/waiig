@@ -1,6 +1,7 @@
 package evaluator
 
 import (
+	"os"
 	"testing"
 	"waiig/lexer"
 	"waiig/object"
@@ -233,8 +234,20 @@ if (10 > 1) {
 			"index out of bounds, index=3 len=3",
 		},
 		{
+			`[1, 2, 3][1:5]`,
+			"range index out of bounds, index=1:5 len=3",
+		},
+		{
 			`1[2]"`,
 			"unknown operator: index of INTEGER",
+		},
+		{
+			`"Hello":"World"`,
+			"unknown operator: STRING : STRING",
+		},
+		{
+			"3:1",
+			"range `from` must be greater than or equal to > `toExclusive`, from=3 toExclusive=1",
 		},
 	}
 	for _, tt := range tests {
@@ -348,6 +361,21 @@ func TestIndexExpression(t *testing.T) {
 	testStringObject(t, testEval(inputStr), "s")
 }
 
+func TestRangeExpression(t *testing.T) {
+	input := "[1, 2, 3][0:2]"
+	inputEmpty := "[1, 2, 3][0:0]"
+	inputSlightOutOfBounds := "[1][1:1]"
+
+	expected := []object.Object{
+		&object.Integer{Value: 1},
+		&object.Integer{Value: 2},
+	}
+
+	testArrayObject(t, testEval(input), expected)
+	testArrayObject(t, testEval(inputEmpty), []object.Object{})
+	testArrayObject(t, testEval(inputSlightOutOfBounds), []object.Object{})
+}
+
 func testArrayObject(t *testing.T, obj object.Object, expected []object.Object) bool {
 	result, ok := obj.(*object.Array)
 	if !ok {
@@ -428,6 +456,43 @@ func TestBuiltinFunctions(t *testing.T) {
 				t.Errorf("wrong error message. expected=%q, got=%q",
 					expected, errObj.Message)
 			}
+		}
+	}
+}
+
+func TestStd(t *testing.T) {
+	data, err := os.ReadFile("../std/std.monkey")
+	if err != nil {
+		t.Error(err)
+	}
+
+	input := string(data)
+
+	l := lexer.New(input)
+	p := parser.New(l)
+	program := p.ParseProgram()
+	env := object.NewEnvironment()
+
+	Eval(program, env)
+
+	funcs := []string{
+		"first",
+		"last",
+		"rest",
+		"map",
+		"reduce",
+		"sum",
+	}
+
+	for _, fnName := range funcs {
+		fn, ok := env.Get(fnName)
+		if !ok {
+			t.Errorf("std function `%s` not found", fnName)
+			return
+		}
+		if _, ok := fn.(*object.Function); !ok {
+			t.Errorf("std function `%s` not a Function, got=%T (%+v)", fnName, fn, fn)
+			return
 		}
 	}
 }

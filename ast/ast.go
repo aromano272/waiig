@@ -326,3 +326,21 @@ func (ie *IndexExpression) String() string {
 
 	return out.String()
 }
+
+type RangeExpression struct {
+	Token token.Token // the ':' token
+	Left  Expression
+	Right Expression
+}
+
+func (ra *RangeExpression) expressionNode()      {}
+func (ra *RangeExpression) TokenLiteral() string { return ra.Token.Literal }
+func (ra *RangeExpression) String() string {
+	var out bytes.Buffer
+
+	out.WriteString(ra.Left.String())
+	out.WriteString(":")
+	out.WriteString(ra.Right.String())
+
+	return out.String()
+}

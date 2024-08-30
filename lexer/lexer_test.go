@@ -29,6 +29,7 @@ if (5 < 10) {
 10 != 9;
 
 [1, 2];
+[1:5];
 `
 
 	tests := []struct {
@@ -137,6 +138,13 @@ if (5 < 10) {
 		{token.INT, "1"},
 		{token.COMMA, ","},
 		{token.INT, "2"},
+		{token.RBRCKT, "]"},
+		{token.SEMICOLON, ";"},
+
+		{token.LBRCKT, "["},
+		{token.INT, "1"},
+		{token.COLON, ":"},
+		{token.INT, "5"},
 		{token.RBRCKT, "]"},
 		{token.SEMICOLON, ";"},
 

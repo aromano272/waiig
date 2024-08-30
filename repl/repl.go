@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"waiig/evaluator"
 	"waiig/lexer"
 	"waiig/object"
@@ -15,6 +16,8 @@ const PROMPT = ">> "
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
 	env := object.NewEnvironment()
+
+	parseStd(env)
 
 	for {
 		fmt.Print(PROMPT)
@@ -41,6 +44,20 @@ func Start(in io.Reader, out io.Writer) {
 			io.WriteString(out, "\n")
 		}
 	}
+}
+
+func parseStd(env *object.Environment) {
+	data, err := os.ReadFile("std/std.monkey")
+	if err != nil {
+		panic(err)
+	}
+
+	input := string(data)
+
+	l := lexer.New(input)
+	p := parser.New(l)
+	program := p.ParseProgram()
+	evaluator.Eval(program, env)
 }
 
 func printParserErrors(out io.Writer, errors []string) {
