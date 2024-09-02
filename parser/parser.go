@@ -11,6 +11,8 @@ import (
 const (
 	_ int = iota
 	LOWEST
+	RANGE       // 2:7
+	HASH_INIT   // {"foo": 1}
 	EQUALS      // ==
 	LESSGREATER // > or <
 	SUM         // +
@@ -29,7 +31,7 @@ var precedences = map[token.TokenType]int{
 	token.MINUS:    SUM,
 	token.SLASH:    PRODUCT,
 	token.ASTERISK: PRODUCT,
-	token.COLON:    PRODUCT,
+	token.COLON:    RANGE,
 	token.LPAREN:   CALL,
 	token.LBRCKT:   INDEX,
 }
@@ -71,6 +73,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
 	p.registerPrefix(token.LBRCKT, p.parseArrayLiteral)
+	p.registerPrefix(token.LBRACE, p.parseHashLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -155,6 +158,49 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 		Elements: p.parseExpressionList(token.RBRCKT),
 	}
 	return arr
+}
+
+func (p *Parser) parseHashLiteral() ast.Expression {
+	hash := &ast.HashLiteral{
+		Token: p.currToken,
+		Pairs: p.parseHashLiteralPairs(),
+	}
+	return hash
+}
+
+func (p *Parser) parseHashLiteralPairs() map[ast.Expression]ast.Expression {
+	pairs := make(map[ast.Expression]ast.Expression)
+
+	for !p.peekTokenIs(token.RBRACE) {
+		p.nextToken()
+
+		// Here comes trouble.. the problem i'm facing is that this parseExpression will parse the `key:value` as a RangeExpression
+		// rather than a Key:Value, bumping the precedence fixes this, but disallows RangeExpressions as keys, which tbh
+		// should not be allowed but I was trying to allow it for the sake of trying to solve a parsing conflict, not sure how
+		// we'd do it without some extensive lookahead to find a ':' before the ',' so we could determine that we're
+		// parsing a range and that there will be another ':' afterward(and before the ',' or '}')
+		key := p.parseExpression(HASH_INIT)
+
+		if !p.expectPeek(token.COLON) {
+			return nil
+		}
+
+		p.nextToken()
+
+		value := p.parseExpression(HASH_INIT)
+
+		pairs[key] = value
+
+		if !p.peekTokenIs(token.RBRACE) && !p.expectPeek(token.COMMA) {
+			return nil
+		}
+	}
+
+	if !p.expectPeek(token.RBRACE) {
+		return nil
+	}
+
+	return pairs
 }
 
 func (p *Parser) parseArrayElements() []ast.Expression {

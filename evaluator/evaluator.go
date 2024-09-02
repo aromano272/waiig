@@ -83,8 +83,43 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalIndexExpression(node, env)
 	case *ast.RangeExpression:
 		return evalRangeExpression(node, env)
+	case *ast.HashLiteral:
+		return evalHashExpression(node, env)
 	}
 	return nil
+}
+
+func evalHashExpression(node *ast.HashLiteral, env *object.Environment) object.Object {
+	hash := &object.Hash{}
+
+	pairs := make(map[object.HashKey]object.HashPair)
+
+	for key, value := range node.Pairs {
+		keyObj := Eval(key, env)
+		if isError(keyObj) {
+			return keyObj
+		}
+
+		var hashKey object.HashKey
+
+		hashable, ok := keyObj.(object.Hashable)
+		if !ok {
+			return newError("unusable as hash key: %s", keyObj.Type())
+		}
+
+		hashKey = hashable.HashKey()
+
+		valueObj := Eval(value, env)
+		if isError(valueObj) {
+			return valueObj
+		}
+
+		pairs[hashKey] = object.HashPair{Key: keyObj, Value: valueObj}
+	}
+
+	hash.Pairs = pairs
+
+	return hash
 }
 
 func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) object.Object {
@@ -98,33 +133,33 @@ func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) obj
 		return indexObj
 	}
 
-	switch index := indexObj.(type) {
-	case *object.Integer:
-		switch obj := left.(type) {
-		case *object.Array:
+	switch obj := left.(type) {
+	case *object.Array:
+		switch index := indexObj.(type) {
+		case *object.Integer:
 			if int(index.Value) >= len(obj.Elements) || index.Value < 0 {
 				return newError("index out of bounds, index=%d len=%d", index.Value, len(obj.Elements))
 			}
 			return obj.Elements[index.Value]
-		case *object.String:
-			if int(index.Value) >= len(obj.Value) || index.Value < 0 {
-				return newError("index out of bounds, index=%d len=%d", index.Value, len(obj.Value))
-			}
-			char := string(obj.Value[index.Value])
-			return &object.String{Value: char}
-		default:
-			return newError("unknown operator: index of %s", left.Type())
-		}
-	case *object.Range:
-		switch obj := left.(type) {
-		case *object.Array:
+		case *object.Range:
 			if int(index.From) > len(obj.Elements) || int(index.ToExclusive) > len(obj.Elements) ||
 				index.From < 0 || index.ToExclusive < 0 {
 				return newError("range index out of bounds, index=%d:%d len=%d", index.From, index.ToExclusive, len(obj.Elements))
 			}
 			elements := obj.Elements[index.From:index.ToExclusive]
 			return &object.Array{Elements: elements}
-		case *object.String:
+		default:
+			return newError("unknown index type: %s", indexObj.Type())
+		}
+	case *object.String:
+		switch index := indexObj.(type) {
+		case *object.Integer:
+			if int(index.Value) >= len(obj.Value) || index.Value < 0 {
+				return newError("index out of bounds, index=%d len=%d", index.Value, len(obj.Value))
+			}
+			char := string(obj.Value[index.Value])
+			return &object.String{Value: char}
+		case *object.Range:
 			if int(index.From) > len(obj.Value) || int(index.ToExclusive) > len(obj.Value) ||
 				index.From < 0 || index.ToExclusive < 0 {
 				return newError("range index out of bounds, index=%d:%d len=%d", index.From, index.ToExclusive, len(obj.Value))
@@ -132,12 +167,23 @@ func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) obj
 			str := obj.Value[index.From:index.ToExclusive]
 			return &object.String{Value: str}
 		default:
-			return newError("unknown operator: index of %s", left.Type())
+			return newError("unknown index type: %s", indexObj.Type())
+		}
+	case *object.Hash:
+		hashKey, ok := indexObj.(object.Hashable)
+		if !ok {
+			return newError("unusable as hash key: %s", indexObj.Type())
+		}
+
+		val, ok := obj.Pairs[hashKey.HashKey()]
+		if !ok {
+			return NULL
+		} else {
+			return val.Value
 		}
 	default:
-		return newError("unknown index type: %s", indexObj.Type())
+		return newError("unknown operator: index of %s", left.Type())
 	}
-
 }
 
 func evalRangeExpression(node *ast.RangeExpression, env *object.Environment) object.Object {
