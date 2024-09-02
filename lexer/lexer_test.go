@@ -30,6 +30,7 @@ if (5 < 10) {
 
 [1, 2];
 [1:5];
+// comment
 `
 
 	tests := []struct {

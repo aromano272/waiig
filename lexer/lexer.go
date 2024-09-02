@@ -32,6 +32,7 @@ func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
 
 	l.skipWhitespace()
+	l.skipComments()
 
 	switch l.ch {
 	case '=':
@@ -108,6 +109,19 @@ func (l *Lexer) peekChar() byte {
 	} else {
 		return l.input[l.readPosition]
 	}
+}
+
+func (l *Lexer) skipComments() {
+	if !(l.ch == '/' && l.peekChar() == '/') {
+		return
+	}
+
+	for l.ch != '\n' &&
+		l.ch != '\r' &&
+		l.ch != 0 {
+		l.readChar()
+	}
+	l.readChar()
 }
 
 func (l *Lexer) skipWhitespace() {
